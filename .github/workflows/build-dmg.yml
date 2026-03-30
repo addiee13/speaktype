@@ -1,0 +1,73 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install DMG packaging tool
+        run: brew install create-dmg
+
+      - name: Build Release app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project speaktype.xcodeproj \
+            -scheme speaktype \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          APP_PATH="build/Build/Products/Release/speaktype.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app bundle not found at $APP_PATH"
+            exit 1
+          fi
+
+          create-dmg \
+            --volname "SpeakType" \
+            --volicon "speaktype/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" \
+            --background "dmg-assets/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 160 \
+            --icon "speaktype.app" 180 170 \
+            --hide-extension "speaktype.app" \
+            --app-drop-link 480 170 \
+            "dist/SpeakType-${GITHUB_SHA::7}.dmg" \
+            "$APP_PATH"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakType-dmg-${{ github.sha }}
+          path: dist/*.dmg
+          retention-days: 7
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakType-app-${{ github.sha }}
+          path: build/Build/Products/Release/speaktype.app
+          retention-days: 7
