@@ -6,6 +6,7 @@ import SwiftUI
 struct MiniRecorderView: View {
     @ObservedObject private var audioRecorder = AudioRecordingService.shared
     private var whisperService: WhisperService { WhisperService.shared }
+    private let targetAppBundleIdentifierProvider: () -> String?
     @State private var isListening = false
 
     @State private var isProcessing = false
@@ -19,6 +20,11 @@ struct MiniRecorderView: View {
     @AppStorage("recordingMode") private var recordingMode: Int = 0
     @AppStorage("transcriptionLanguage") private var transcriptionLanguage: String = "auto"
     @AppStorage("recentTranscriptionLanguages") private var recentLanguagesString: String = ""
+    @AppStorage("transcriptionProfile") private var transcriptionProfileRawValue: String =
+        TranscriptionProfile.prose.rawValue
+    @AppStorage("autoDetectTranscriptionProfile") private var autoDetectTranscriptionProfile = true
+    @AppStorage("punctuationMode") private var punctuationModeRawValue: String =
+        PunctuationMode.automatic.rawValue
     private let quickLanguageDefaults = ["en", "es", "fr", "de", "hi", "pt", "ja", "zh"]
 
     private var recentLanguageCodes: [String] {
@@ -93,9 +99,14 @@ struct MiniRecorderView: View {
     }
 
     // Default Init for Preview
-    init(onCommit: ((String) -> Void)? = nil, onCancel: (() -> Void)? = nil) {
+    init(
+        onCommit: ((String) -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
+        targetAppBundleIdentifierProvider: @escaping () -> String? = { nil }
+    ) {
         self.onCommit = onCommit
         self.onCancel = onCancel
+        self.targetAppBundleIdentifierProvider = targetAppBundleIdentifierProvider
     }
 
     var body: some View {
@@ -134,6 +145,24 @@ struct MiniRecorderView: View {
                     .frame(height: 30)
 
                     HStack(spacing: 8) {
+                        Text(activeProfile.displayName)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white.opacity(0.85))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.14))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .help(activeProfile.description)
+
+                        Text(activePunctuationMode.resolved(for: activeProfile) ? "Punct" : "Plain")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white.opacity(0.85))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .help(activePunctuationMode.description)
+
                         Menu {
                             Button("Auto-detect") { setLanguage("auto") }
 
@@ -328,6 +357,46 @@ struct MiniRecorderView: View {
                     Label(model.name, systemImage: "checkmark")
                 } else {
                     Text(model.name)
+                }
+            }
+        }
+
+        Divider()
+
+        Menu("Profile") {
+            ForEach(TranscriptionProfile.allCases) { profile in
+                Button {
+                    transcriptionProfileRawValue = profile.rawValue
+                } label: {
+                    if currentSelectedProfile == profile {
+                        Label(profile.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(profile.displayName)
+                    }
+                }
+            }
+        }
+
+        Button {
+            autoDetectTranscriptionProfile.toggle()
+        } label: {
+            if autoDetectTranscriptionProfile {
+                Label("Auto-detect App Context", systemImage: "checkmark")
+            } else {
+                Text("Auto-detect App Context")
+            }
+        }
+
+        Menu("Punctuation") {
+            ForEach(PunctuationMode.allCases) { mode in
+                Button {
+                    punctuationModeRawValue = mode.rawValue
+                } label: {
+                    if currentSelectedPunctuationMode == mode {
+                        Label(mode.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(mode.displayName)
+                    }
                 }
             }
         }
@@ -580,21 +649,32 @@ struct MiniRecorderView: View {
             }
 
             let duration = await getAudioDuration(url: url)
+            let targetAppBundleIdentifier = targetAppBundleIdentifierProvider()
+            let formattedText = CustomDictionaryService.shared.formatForOutput(
+                text,
+                profile: activeProfile,
+                punctuationMode: activePunctuationMode,
+                bundleIdentifier: targetAppBundleIdentifier
+            )
             let modelName =
                 AIModel.availableModels.first(where: { $0.variant == selectedModel })?.name
                 ?? selectedModel
             HistoryService.shared.addItem(
-                transcript: text,
+                transcript: formattedText,
                 duration: duration,
                 audioFileURL: url,
                 modelUsed: modelName,
-                transcriptionTime: nil
+                transcriptionTime: nil,
+                rawTranscript: text,
+                transcriptionProfile: activeProfile,
+                punctuationMode: activePunctuationMode,
+                targetAppBundleIdentifier: targetAppBundleIdentifier
             )
 
             debugLog("Calling onCommit...")
             await MainActor.run {
                 if !cancelCommit {
-                    onCommit?(text)
+                    onCommit?(formattedText)
                 }
                 isProcessing = false
 
@@ -630,6 +710,26 @@ struct MiniRecorderView: View {
     private func spokenLanguageDisplayName(for code: String) -> String {
         if code == "auto" { return "Auto-detect" }
         return GeneralSettingsTab.whisperLanguages.first(where: { $0.code == code })?.name ?? code
+    }
+
+    private var activeProfile: TranscriptionProfile {
+        CustomDictionaryService.shared.resolveProfile(
+            preferredRawValue: transcriptionProfileRawValue,
+            autoDetect: autoDetectTranscriptionProfile,
+            bundleIdentifier: targetAppBundleIdentifierProvider()
+        )
+    }
+
+    private var activePunctuationMode: PunctuationMode {
+        PunctuationMode(rawValue: punctuationModeRawValue) ?? .automatic
+    }
+
+    private var currentSelectedProfile: TranscriptionProfile {
+        TranscriptionProfile(rawValue: transcriptionProfileRawValue) ?? .prose
+    }
+
+    private var currentSelectedPunctuationMode: PunctuationMode {
+        PunctuationMode(rawValue: punctuationModeRawValue) ?? .automatic
     }
 }
 

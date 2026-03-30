@@ -247,6 +247,9 @@ class WhisperService {
             options: .regularExpression
         )
 
-        return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        normalized = CustomDictionaryService.shared.apply(to: normalized)
+
+        return normalized
     }
 }

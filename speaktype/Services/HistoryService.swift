@@ -13,10 +13,14 @@ struct HistoryItem: Identifiable, Codable, Hashable {
     let id: UUID
     let date: Date
     let transcript: String
+    var rawTranscript: String? = nil
     let duration: TimeInterval
     let audioFileURL: URL?
     let modelUsed: String?
     let transcriptionTime: TimeInterval?
+    var transcriptionProfile: String? = nil
+    var punctuationMode: String? = nil
+    var targetAppBundleIdentifier: String? = nil
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -41,8 +45,24 @@ class HistoryService: ObservableObject {
         loadHistory()
     }
     
-    func addItem(transcript: String, duration: TimeInterval, audioFileURL: URL? = nil, modelUsed: String? = nil, transcriptionTime: TimeInterval? = nil) {
-        let normalizedTranscript = WhisperService.normalizedTranscription(from: transcript)
+    func addItem(
+        transcript: String,
+        duration: TimeInterval,
+        audioFileURL: URL? = nil,
+        modelUsed: String? = nil,
+        transcriptionTime: TimeInterval? = nil,
+        rawTranscript: String? = nil,
+        transcriptionProfile: TranscriptionProfile? = nil,
+        punctuationMode: PunctuationMode? = nil,
+        targetAppBundleIdentifier: String? = nil
+    ) {
+        let normalizedTranscript: String
+        if let rawTranscript {
+            normalizedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            normalizedTranscript = WhisperService.normalizedTranscription(from: transcript)
+        }
+
         guard !normalizedTranscript.isEmpty else { return }
 
         let timestamp = Date()
@@ -54,10 +74,14 @@ class HistoryService: ObservableObject {
             id: UUID(),
             date: timestamp,
             transcript: normalizedTranscript,
+            rawTranscript: rawTranscript,
             duration: duration,
             audioFileURL: audioFileURL,
             modelUsed: modelUsed,
-            transcriptionTime: transcriptionTime
+            transcriptionTime: transcriptionTime,
+            transcriptionProfile: transcriptionProfile?.rawValue,
+            punctuationMode: punctuationMode?.rawValue,
+            targetAppBundleIdentifier: targetAppBundleIdentifier
         )
         let statsEntry = HistoryStatsEntry(
             id: newItem.id,
@@ -143,10 +167,14 @@ class HistoryService: ObservableObject {
                     id: item.id,
                     date: item.date,
                     transcript: normalizedTranscript,
+                    rawTranscript: item.rawTranscript,
                     duration: item.duration,
                     audioFileURL: item.audioFileURL,
                     modelUsed: item.modelUsed,
-                    transcriptionTime: item.transcriptionTime
+                    transcriptionTime: item.transcriptionTime,
+                    transcriptionProfile: item.transcriptionProfile,
+                    punctuationMode: item.punctuationMode,
+                    targetAppBundleIdentifier: item.targetAppBundleIdentifier
                 )
             }
 

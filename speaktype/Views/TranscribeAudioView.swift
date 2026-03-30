@@ -7,6 +7,10 @@ struct TranscribeAudioView: View {
     @StateObject private var audioRecorder = AudioRecordingService()
     private var whisperService: WhisperService { WhisperService.shared }
     @AppStorage("transcriptionLanguage") private var transcriptionLanguage: String = "auto"
+    @AppStorage("transcriptionProfile") private var transcriptionProfileRawValue: String =
+        TranscriptionProfile.prose.rawValue
+    @AppStorage("punctuationMode") private var punctuationModeRawValue: String =
+        PunctuationMode.automatic.rawValue
     @State private var transcribedText: String = ""
     @State private var isTranscribing = false
     @State private var showFileImporter = false
@@ -240,10 +244,25 @@ struct TranscribeAudioView: View {
         Task {
             isTranscribing = true
             do {
-                transcribedText = try await whisperService.transcribe(audioFile: url, language: transcriptionLanguage)
+                let rawTranscription = try await whisperService.transcribe(audioFile: url, language: transcriptionLanguage)
+                let profile = TranscriptionProfile(rawValue: transcriptionProfileRawValue) ?? .prose
+                let punctuationMode = PunctuationMode(rawValue: punctuationModeRawValue) ?? .automatic
+                transcribedText = CustomDictionaryService.shared.formatForOutput(
+                    rawTranscription,
+                    profile: profile,
+                    punctuationMode: punctuationMode,
+                    bundleIdentifier: nil
+                )
                 // Save to History
                 let duration = try await getAudioDuration(url: url)
-                HistoryService.shared.addItem(transcript: transcribedText, duration: duration, audioFileURL: url)
+                HistoryService.shared.addItem(
+                    transcript: transcribedText,
+                    duration: duration,
+                    audioFileURL: url,
+                    rawTranscript: rawTranscription,
+                    transcriptionProfile: profile,
+                    punctuationMode: punctuationMode
+                )
             } catch {
                 transcribedText = "Error: \(error.localizedDescription)"
             }

@@ -64,6 +64,9 @@ class MiniRecorderWindowController: NSObject {
             },
             onCancel: { [weak self] in
                 self?.panel?.orderOut(nil)
+            },
+            targetAppBundleIdentifierProvider: { [weak self] in
+                self?.lastActiveApp?.bundleIdentifier
             }
         )
 

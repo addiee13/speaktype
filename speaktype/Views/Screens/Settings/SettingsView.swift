@@ -92,6 +92,11 @@ struct GeneralSettingsTab: View {
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon: Bool = true
     @AppStorage("transcriptionLanguage") private var transcriptionLanguage: String = "auto"
     @AppStorage("recentTranscriptionLanguages") private var recentLanguagesString: String = ""
+    @AppStorage("transcriptionProfile") private var transcriptionProfileRawValue: String =
+        TranscriptionProfile.prose.rawValue
+    @AppStorage("autoDetectTranscriptionProfile") private var autoDetectTranscriptionProfile = true
+    @AppStorage("punctuationMode") private var punctuationModeRawValue: String =
+        PunctuationMode.automatic.rawValue
 
     private var recentLanguageCodes: [String] {
         recentLanguagesString.split(separator: ",").map(String.init).filter { !$0.isEmpty }
@@ -207,6 +212,96 @@ struct GeneralSettingsTab: View {
                             Toggle("", isOn: $showMenuBarIcon)
                                 .labelsHidden()
                         }
+                    }
+                }
+
+                SettingsSection {
+                    SettingsSectionHeader(
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        title: "Developer Output",
+                        subtitle: "Tune dictation for terminals, code, and technical writing"
+                    )
+
+                    VStack(spacing: 16) {
+                        HStack {
+                            Text("Default profile")
+                                .font(Typography.bodyMedium)
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Menu {
+                                ForEach(TranscriptionProfile.allCases) { profile in
+                                    Button(profile.displayName) {
+                                        transcriptionProfileRawValue = profile.rawValue
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(currentTranscriptionProfile.displayName)
+                                        .font(Typography.bodySmall)
+                                        .foregroundStyle(Color.textPrimary)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(Color.textPrimary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(Color.bgHover)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .menuStyle(.borderlessButton)
+                        }
+
+                        Text(currentTranscriptionProfile.description)
+                            .font(Typography.captionSmall)
+                            .foregroundStyle(Color.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        HStack {
+                            Text("Auto-detect from app")
+                                .font(Typography.bodyMedium)
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Toggle("", isOn: $autoDetectTranscriptionProfile)
+                                .labelsHidden()
+                        }
+
+                        HStack {
+                            Text("Punctuation mode")
+                                .font(Typography.bodyMedium)
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Menu {
+                                ForEach(PunctuationMode.allCases) { mode in
+                                    Button(mode.displayName) {
+                                        punctuationModeRawValue = mode.rawValue
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(currentPunctuationMode.displayName)
+                                        .font(Typography.bodySmall)
+                                        .foregroundStyle(Color.textPrimary)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(Color.textPrimary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(Color.bgHover)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .menuStyle(.borderlessButton)
+                        }
+
+                        Text(currentPunctuationMode.description)
+                            .font(Typography.captionSmall)
+                            .foregroundStyle(Color.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text("Built-in vocabulary now favors developer terms, company names, package names, and CLI tools. Terminal apps auto-switch to command-safe formatting when auto-detect is enabled.")
+                            .font(Typography.captionSmall)
+                            .foregroundStyle(Color.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -371,6 +466,14 @@ struct GeneralSettingsTab: View {
     private func displayName(for code: String) -> String {
         if code == "auto" { return "Auto-detect" }
         return Self.whisperLanguages.first(where: { $0.code == code })?.name ?? code
+    }
+
+    private var currentTranscriptionProfile: TranscriptionProfile {
+        TranscriptionProfile(rawValue: transcriptionProfileRawValue) ?? .prose
+    }
+
+    private var currentPunctuationMode: PunctuationMode {
+        PunctuationMode(rawValue: punctuationModeRawValue) ?? .automatic
     }
 
     // All languages supported by Whisper, sorted alphabetically

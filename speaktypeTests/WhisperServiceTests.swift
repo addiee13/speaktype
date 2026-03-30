@@ -54,4 +54,12 @@ final class WhisperServiceTests: XCTestCase {
 
         XCTAssertEqual(normalized, "")
     }
+
+    func testNormalizedTranscriptionAppliesTechDictionary() {
+        let normalized = WhisperService.normalizedTranscription(
+            from: "chat gpt with claude and gemini on fast api"
+        )
+
+        XCTAssertEqual(normalized, "ChatGPT with Claude and Gemini on FastAPI")
+    }
 }

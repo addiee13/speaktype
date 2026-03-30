@@ -17,6 +17,10 @@ struct DashboardView: View {
 
     @AppStorage("selectedModelVariant") private var selectedModel: String = "openai_whisper-base"
     @AppStorage("transcriptionLanguage") private var transcriptionLanguage: String = "auto"
+    @AppStorage("transcriptionProfile") private var transcriptionProfileRawValue: String =
+        TranscriptionProfile.prose.rawValue
+    @AppStorage("punctuationMode") private var punctuationModeRawValue: String =
+        PunctuationMode.automatic.rawValue
     @State private var showFileImporter = false
     @State private var isTranscribing = false
     @State private var transcriptionStatus = ""
@@ -250,19 +254,30 @@ struct DashboardView: View {
             do {
                 if !whisperService.isInitialized { try? await whisperService.initialize() }
 
-                let text = try await whisperService.transcribe(audioFile: url, language: transcriptionLanguage)
+                let rawText = try await whisperService.transcribe(audioFile: url, language: transcriptionLanguage)
                 let duration = try await getAudioDuration(url: url)
                 let modelName =
                     AIModel.availableModels.first(where: { $0.variant == selectedModel })?.name
                     ?? selectedModel
+                let profile = TranscriptionProfile(rawValue: transcriptionProfileRawValue) ?? .prose
+                let punctuationMode = PunctuationMode(rawValue: punctuationModeRawValue) ?? .automatic
+                let formattedText = CustomDictionaryService.shared.formatForOutput(
+                    rawText,
+                    profile: profile,
+                    punctuationMode: punctuationMode,
+                    bundleIdentifier: nil
+                )
 
                 DispatchQueue.main.async {
                     historyService.addItem(
-                        transcript: text,
+                        transcript: formattedText,
                         duration: duration,
                         audioFileURL: url,
                         modelUsed: modelName,
-                        transcriptionTime: nil
+                        transcriptionTime: nil,
+                        rawTranscript: rawText,
+                        transcriptionProfile: profile,
+                        punctuationMode: punctuationMode
                     )
                     transcriptionStatus = "Done!"
                     isTranscribing = false
